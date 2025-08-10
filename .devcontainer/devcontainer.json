@@ -1,14 +1,33 @@
 {
-    "name": "Kali-like Codespace",
+    "name": "Bug Bounty Hunting Environment",
     "build": {
         "dockerfile": "Dockerfile"
     },
     "settings": {
-        "terminal.integrated.shell.linux": "/bin/bash"
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "terminal.integrated.fontSize": 14,
+        "workbench.colorTheme": "Default Dark+",
+        "editor.minimap.enabled": false
     },
     "extensions": [
         "ms-vscode.cpptools",
-        "ms-python.python"
+        "ms-python.python",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "ms-vscode.powershell",
+        "streetsidesoftware.code-spell-checker"
     ],
-    "remoteUser": "root"
+    "remoteUser": "root",
+    "postCreateCommand": "echo 'Eldesoki Bug bounty environment ready! Run bb_toolkit.sh to get started.' && cd /workspace",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    "forwardPorts": [8080, 8000, 3000, 5000],
+    "portsAttributes": {
+        "8080": {
+            "label": "Web Server",
+            "onAutoForward": "notify"
+        }
+    }
 }
