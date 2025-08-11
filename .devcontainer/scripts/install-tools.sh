@@ -1,60 +1,58 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This script installs many common bug-bounty tools into the Codespace.
-# It is idempotent: re-running is safe.
-
-export GOPATH=/workspace/gopath
+# This runs as the 'vscode' user inside the devcontainer.
+export GOPATH=$HOME/go
 export PATH=$PATH:$GOPATH/bin:$HOME/.local/bin
-mkdir -p "$GOPATH/bin"
+mkdir -p "$GOPATH/bin" "$HOME/.local/bin" "$HOME/tools"
 
-echo "[+] Updating apt and installing python/node helpers (may ask for sudo)..."
-# apt packages already installed in Dockerfile; ensure pip packages and python tools
+echo "[*] Updating pip and installing Python helpers..."
 python3 -m pip install --user --upgrade pip setuptools wheel
-python3 -m pip install --user linkfinder requests
 
-echo "[+] Installing Go tools (this may take a few minutes)..."
-# Use 'go install' to get latest versions in GOPATH/bin
-# If go is missing on host, user must install it.
-export GO111MODULE=on
+echo "[*] Installing common utilities (may use sudo)..."
+sudo apt-get update -y
+sudo apt-get install -y --no-install-recommends unzip
 
-# Subdomain & discovery
-go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-go install github.com/tomnomnom/assetfinder@latest
-go install github.com/OWASP/Amass/v3/...@latest || true
-
-# Probing / HTTP
-go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-go install github.com/tomnomnom/httprobe@latest
-
-# Fuzzing / brute
-go install github.com/ffuf/ffuf@latest
-
-# Web archive & URLs
-go install github.com/tomnomnom/waybackurls@latest
-go install github.com/lc/gau/v2/cmd/gau@latest
-
-# Directory discovery
-go install github.com/jaeles-project/gospider@latest || true
-
-# Misc
-go install github.com/ffuf/ffuf@latest || true
-
-# Node-based or python tools
-echo "[+] Installing Node & npm tools (gau, waybackurls already installed)..."
-npm install -g sox || true
-
-# Install amass via apt fallback if go install failed
-if ! command -v amass >/dev/null 2>&1; then
-  echo "[i] amass not found via go install; attempting apt-get"
-  sudo apt-get update && sudo apt-get install -y amass || true
+# Install Go tools (subfinder, httpx, assetfinder, waybackurls, gau, ffuf, httprobe)
+if command -v go >/dev/null 2>&1; then
+  echo "[*] Installing Go-based tools..."
+  GO111MODULE=on go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+  go install github.com/tomnomnom/assetfinder@latest
+  go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+  go install github.com/tomnomnom/httprobe@latest
+  go install github.com/tomnomnom/waybackurls@latest
+  go install github.com/lc/gau/v2/cmd/gau@latest
+  go install github.com/ffuf/ffuf@latest
+else
+  echo "[!] go not found - skipping go install steps. (golang-go should be in the image.)"
 fi
 
-# Add some convenience scripts
-mkdir -p /workspace/tools
+# Install LinkFinder (python)
+echo "[*] Installing LinkFinder..."
+if [ ! -d "$HOME/tools/LinkFinder" ]; then
+  git clone https://github.com/GerbenJavado/LinkFinder.git "$HOME/tools/LinkFinder"
+fi
+python3 -m pip install --user -r "$HOME/tools/LinkFinder/requirements.txt" || true
+cat > "$HOME/.local/bin/linkfinder" <<'PY'
+#!/usr/bin/env bash
+python3 "$HOME/tools/LinkFinder/linkfinder.py" "$@"
+PY
+chmod +x "$HOME/.local/bin/linkfinder"
+
+# Install sqlmap
+echo "[*] Installing sqlmap..."
+if [ ! -d "$HOME/tools/sqlmap" ]; then
+  git clone --depth=1 https://github.com/sqlmapproject/sqlmap.git "$HOME/tools/sqlmap"
+fi
+cat > "$HOME/.local/bin/sqlmap" <<'PY'
+#!/usr/bin/env bash
+python3 "$HOME/tools/sqlmap/sqlmap.py" "$@"
+PY
+chmod +x "$HOME/.local/bin/sqlmap"
+
+# small helper script
 cat > /workspace/tools/example-scan.sh <<'EOF'
 #!/usr/bin/env bash
-# Example: run a light discovery pipeline
 set -e
 if [ -z "${1:-}" ]; then
   echo "Usage: $0 domain.tld"
@@ -68,9 +66,13 @@ cat subs.txt | httpx -silent -ports 80,443 -o live.txt
 EOF
 chmod +x /workspace/tools/example-scan.sh
 
-# Python helpers installed
-python3 -m pip install --user virtualenv
+# Add PATH persistence to .bashrc
+if ! grep -q 'export GOPATH' "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<'RC'
+export GOPATH=$HOME/go
+export PATH=$PATH:$GOPATH/bin:$HOME/.local/bin
+RC
+fi
 
-# Final message
-echo "[+] Installation complete. PATH includes: $GOPATH/bin and ~/.local/bin"
-echo "Try: /workspace/tools/example-scan.sh example.com"
+echo "[+] Installation finished. Open a new terminal or run: source ~/.bashrc"
+echo "Sample checks: subfinder, assetfinder, httpx, linkfinder, sqlmap"
