@@ -8,10 +8,10 @@ ENV LANG=C.UTF-8
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       sudo wget curl git python3 python3-pip python3-venv \
-      golang-go nodejs npm openjdk-17-jre-headless \
-      nmap masscan jq netcat gnupg2 ca-certificates lsb-release \
+      golang-go nodejs npm openjdk-21-jre \
+      nmap masscan jq netcat-openbsd gnupg2 ca-certificates lsb-release \
       build-essential unzip tar dnsutils iproute2 iputils-ping \
-      neofetch vim tmux htop less \
+      vim tmux htop less \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user 'vscode' (Codespaces convention)
